@@ -1,30 +1,45 @@
-import React, {createContext, useState, useEffect} from 'react';
-import * as auth from '../services/auth';
-import {View, ActivityIndicator} from 'react-native';
+import React, {createContext, useState, useEffect, useContext} from 'react';
 import AsyncStorage from '@react-native-community/async-storage';
+import * as auth from '../services/auth';
+import api from '../services/api';
+
+interface User {
+  name: string;
+  email: string;
+}
+
+interface Response {
+  token: string;
+  user: {
+    name: string;
+    email: string;
+  };
+}
 
 interface AuthContextData {
   signed: boolean;
-  user: object | null;
+  user: User | null;
+  loading: boolean;
   signIn(): Promise<void>;
   signOut(): void;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
-export const AuthProvider: React.FC = ({children}) => {
-  const [user, setUser] = useState<object | null>(null);
+const AuthProvider: React.FC = ({children}) => {
+  const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadStorageData() {
-      const storagedUser = await AsyncStorage.getItem('@CheerAuth:user');
-      const storagedToken = await AsyncStorage.getItem('@CheerAuth:token');
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const storagedUser = await AsyncStorage.getItem('@RNAuth:user');
+      const storagedToken = await AsyncStorage.getItem('@RNAuth:token');
 
       if (storagedUser && storagedToken) {
         setUser(JSON.parse(storagedUser));
+        api.defaults.headers.Authorization = `Baerer ${storagedToken}`;
       }
+
       setLoading(false);
     }
 
@@ -32,8 +47,11 @@ export const AuthProvider: React.FC = ({children}) => {
   });
 
   async function signIn() {
-    const response = await auth.signIn();
+    const responsed = await auth.signIn();
+    const response = (responsed as unknown) as Response;
     setUser(response.user);
+
+    api.defaults.headers.Authorization = `Baerer ${response.token}`;
 
     await AsyncStorage.setItem('@RNAuth:user', JSON.stringify(response.user));
     await AsyncStorage.setItem('@RNAuth:token', response.token);
@@ -44,20 +62,22 @@ export const AuthProvider: React.FC = ({children}) => {
     setUser(null);
   }
 
-  if (loading) {
-    return (
-      // eslint-disable-next-line react-native/no-inline-styles
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-        <ActivityIndicator size="large" color="#666" />
-      </View>
-    );
-  }
-
   return (
-    <AuthContext.Provider value={{signed: !!user, user, signIn, signOut}}>
+    <AuthContext.Provider
+      value={{signed: !!user, user, loading, signIn, signOut}}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export default AuthContext;
+function useAuth() {
+  const context = useContext(AuthContext);
+
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider.');
+  }
+
+  return context;
+}
+
+export {AuthProvider, useAuth};
