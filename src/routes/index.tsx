@@ -11,6 +11,7 @@ const Routes: React.FC = () => {
 
   if (loading) {
     return (
+      // eslint-disable-next-line react-native/no-inline-styles
       <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
         <ActivityIndicator size="large" color="#666" />
       </View>
